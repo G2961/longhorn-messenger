@@ -28,3 +28,4 @@ server-run.log
 *.apk.idsig
 *.msi
 *.exe
+ui/ice.json

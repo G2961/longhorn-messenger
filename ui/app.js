@@ -41,15 +41,16 @@ let typingTimers=new Map(),lastTypingSent=0,typingSentTo=0;
 let readSeqByPeer=new Map(); // peer -> мой последний отправленный read
 const cfg={server:localStorage.getItem("lh-server")||(location.protocol.startsWith("http")&&!location.hostname.includes("tauri")?location.origin:"https://lh.g2961.space"),theme:localStorage.getItem("lh-theme")||"light",regAvatar:0};
 /* ICE: STUN для прямого P2P + TURN-ретрансляция на нашем сервере
-   (нужна за NAT/VPN — Cloudflare WARP, симметричный NAT и т.п.) */
-const ICE_SERVERS=[
- /* STUN для прямого P2P (работает не везде: WARP/симметричный NAT съедают UDP) */
- {urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]},
- /* TURN-ретрансляция на нашем сервере. UDP предпочтительнее, но VPN типа
-    Cloudflare WARP глотают UDP — поэтому обязательно TCP-транспорт.
-    Проверено: телефон за WARP получает relay только по tcp. */
- {urls:["turn:45.80.229.25:3478?transport=udp","turn:45.80.229.25:3478?transport=tcp"],username:"longhorn",credential:"f2f0f350d147edf073e5a2b1"}
+   (нужна за NAT/VPN — Cloudflare WARP, симметричный NAT и т.п.).
+   TURN-креды не хардкодим: подтягиваются из ui/ice.json (его нет в git),
+   при отсутствии — работает только STUN. */
+let ICE_SERVERS=[
+ {urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]}
 ];
+try{const iceConf=await fetch("ice.json").then(r=>r.ok?r.json():null).catch(()=>null);
+ if(iceConf&&iceConf.turn){/* UDP предпочтительнее, но WARP-подобные VPN глотают UDP —
+   поэтому обязательно TCP-транспорт (проверено: телефон за WARP получает relay только по tcp) */
+  ICE_SERVERS.push({urls:iceConf.turn.urls,username:iceConf.turn.username,credential:iceConf.turn.credential})}}catch(e){}
 
 /* ---------- утилиты ---------- */
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
