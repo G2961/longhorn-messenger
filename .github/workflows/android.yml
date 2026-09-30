@@ -30,11 +30,12 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
+      # Android SDK на ubuntu-latest предустановлен (ANDROID_HOME задан);
+      # setup-android не нужен и падает на устаревшем пакете tools
       - name: Install NDK
-        run: sdkmanager "ndk;28.2.13676358" >/dev/null
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" >/dev/null
 
       - name: Setup Node
         uses: actions/setup-node@v4
