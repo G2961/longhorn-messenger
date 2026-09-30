@@ -1,0 +1,30 @@
+# runtime data
+data/
+*.json.tmp
+
+# go
+*.exe
+longhorn-server
+server/longhorn-server
+
+# node
+node_modules/
+
+# tauri / rust
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# secrets / personal
+turn-secret.txt
+threads/
+
+# logs
+*.log
+http-run.log
+server-run.log
+
+# build artifacts
+*.apk
+*.apk.idsig
+*.msi
+*.exe
