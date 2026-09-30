@@ -1,0 +1,89 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;28.2.13676358" >/dev/null
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install tauri CLI
+        run: npm ci
+
+      - name: Build APK (aarch64)
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+        run: npx tauri android build --apk --target aarch64
+
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > $RUNNER_TEMP/lh.keystore
+          else
+            # секрета нет — одноразовый debug-ключ (для ручной установки хватает)
+            keytool -genkeypair -v \
+              -keystore $RUNNER_TEMP/lh.keystore \
+              -storepass android -keypass android \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Sign APK
+        env:
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          PASS="${KEYSTORE_PASS:-android}"
+          ALIAS="${KEY_ALIAS:-androiddebugkey}"
+          $ANDROID_HOME/build-tools/34.0.0/zipalign -f -p 4 \
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
+            app-release-aligned.apk
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            --ks "$RUNNER_TEMP/lh.keystore" \
+            --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
+            --ks-key-alias "$ALIAS" \
+            --out app-release-signed.apk \
+            app-release-aligned.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: longhorn-messenger-apk
+          path: app-release-signed.apk
+          retention-days: 30
